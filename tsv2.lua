@@ -195,7 +195,7 @@ local repo = 'https://raw.githubusercontent.com/dooms-scripts/ui-libraries/main/
 
 local encrypt       = loadstring(game:HttpGet(repo .. 'encrypt.lua'))()
 local notifications = loadstring(game:HttpGet(repo .. 'encrypt-notifications.lua'))()
-local esp			= loadstring(game:HttpGet(repo .. 'encrypt-esp'))()
+local esp			= loadstring(game:HttpGet(repo .. 'encrypt-esp.lua'))()
 
 local camlock = loadstring(game:HttpGet('https://raw.githubusercontent.com/dooms-private/dahood/main/camlock'))()
 
@@ -420,10 +420,10 @@ target_keybind = target_category.new_keybind({ text = 'change target', callback 
             local plr = players.LocalPlayer
             local char = plr.Character or plr.CharacterAdded:Wait()
             local root = char:WaitForChild('HumanoidRootPart')
-            local human = char:WaitForChild('Humanoid')
+			local body_effects = char.BodyEffects or char:WaitForChild('BodyEffects')
     
             for _, player in ipairs(game.Players:GetPlayers()) do
-                if player.Character and root and player.Name ~= plr.Name then
+                if player.Character and root and player.Name ~= plr.Name and body_effects['K.O'].Value ~= true then
                     local human = player.Character.Humanoid
                     local mouse_pos = Vector2.new(cursor.X, cursor.Y)
                     local vector, on_screen = workspace.CurrentCamera:WorldToScreenPoint(human.Parent.HumanoidRootPart.Position)
@@ -763,6 +763,27 @@ beam_part_2.CanTouch = false
 beam_part_2.Anchored = true
 beam_part_2.Transparency = 1
 
+local dot_gui = Instance.new("BillboardGui", beam_part_2)
+local dot = Instance.new("Frame")
+local round = Instance.new("UICorner")
+
+dot_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+dot_gui.Active = true
+dot_gui.AlwaysOnTop = true
+dot_gui.LightInfluence = 1.000
+dot_gui.Size = UDim2.new(1, 0, 1, 0)
+
+dot.Parent = dot_gui
+dot.AnchorPoint = Vector2.new(0.5, 0.5)
+dot.BackgroundColor3 = Color3.fromRGB(255, 75, 255)
+dot.BorderColor3 = Color3.fromRGB(0, 0, 0)
+dot.BorderSizePixel = 0
+dot.Position = UDim2.new(0.5, 0, 0.5, 0)
+dot.Size = UDim2.new(0.5, 0, 0.5, 0)
+
+round.CornerRadius = UDim.new(1, 0)
+round.Parent = dot
+
 local beam_attachment_1 = Instance.new('Attachment', beam_part)
 local beam_attachment_2 = Instance.new('Attachment', beam_part_2)
 
@@ -781,10 +802,12 @@ beam.Color = ColorSequence.new({
 
 game:GetService('RunService').Stepped:Connect(function()
 	beam_part.Position = plr:GetMouse().Hit.p
-	if aimlock_target and aimlock_target.HumanoidRootPart then
+	if aimlock_target then
 		if aimlock_predictions then
-            local move_direction = aimlock_target.Humanoid.MoveDirection
-			local target_root = aimlock_target.HumanoidRootPart or aimlock_target:WaitForChild('HumanoidRootPart')
+			local character = aimlock_target.Character or aimlock_target.CharacterAdded:Wait()
+			character:WaitForChild('Humanoid')
+            local move_direction = character.Humanoid.MoveDirection 
+			local target_root = character.HumanoidRootPart or character:WaitForChild('HumanoidRootPart')
             
 			beam_part_2.Position = Vector3.new(
 				target_root.Position.X + move_direction.X * aimlock_x_prediction,
@@ -793,7 +816,10 @@ game:GetService('RunService').Stepped:Connect(function()
 			)
 
         elseif not aimlock_predictions then
-            beam_part_2.Position = aimlock_target.HumanoidRootPart.Position
+			local character = aimlock_target.Character or aimlock_target.CharacterAdded:Wait()
+			local target_root = character.HumanoidRootPart or character:WaitForChild('HumanoidRootPart')
+            
+            beam_part_2.Position = target_root.Position
         end
 	end
 end)
@@ -802,6 +828,54 @@ aimlock_category = group2.new_category('aimlock')
 
 --[ FUNCTIONS ]----------------------------
 coroutine.wrap(function()
+    run_service.Stepped:Connect(function()
+        local player_gui = plr:WaitForChild('PlayerGui')
+        local main_gui = player_gui:WaitForChild('MainScreenGui')
+        local crosshair = main_gui:WaitForChild('Aim')
+
+        if not aimlock_locked and aimlock then
+            crosshair.Rotation = 0
+        elseif aimlock_locked and aimlock then
+            crosshair.Rotation += 3.5
+            task.wait()
+
+            if crosshair.Rotation >= 360 then
+                crosshair.Rotation = 0
+            end
+        end
+    end)
+end)()
+
+coroutine.wrap(function()
+    function autopred(ping)
+        local starter = 0.1
+        local pred = (0.1 + (0.000698800 * ping - 0.000001))*10
+
+        return pred
+    end
+
+    run_service.Stepped:Connect(function()
+        if aimlock_autopredict then
+		    local ping = plr:GetNetworkPing() * 2000
+		    aimlock_x_prediction = autopred(ping)
+		    aimlock_y_prediction = autopred(ping) * 1.25
+
+            aimlock_x_pred:disable()
+            aimlock_y_pred:disable()
+
+            aimlock_x_pred:update(tostring(aimlock_x_prediction):sub(1, 5))
+            aimlock_y_pred:update(tostring(aimlock_y_prediction):sub(1, 5))
+        elseif not aimlock_autopredict then
+            aimlock_x_pred:enable()
+            aimlock_y_pred:enable()
+
+            -- x_prediction.update('0')
+            -- y_prediction.update('0')
+        end
+    end)
+end)()
+
+coroutine.wrap(function()
     local count = 0
     local speed = 15
     local radius = 15
@@ -809,7 +883,9 @@ coroutine.wrap(function()
         if strafing and aimlock_target then
             local char = plr.Character or plr.CharacterAdded:Wait()
             local root = char.HumanoidRootPart or char:WaitForChild('HumanoidRootPart')
-            local target_root = aimlock_target.HumanoidRootPart or aimlock_target:WaitForChild('HumanoidRootPart')
+
+			local target_char = aimlock_target.Character or aimlock_target.CharacterAdded:Wait()
+            local target_root = target_char.HumanoidRootPart or target_char:WaitForChild('HumanoidRootPart')
 
             if target_root then
                 count += 1
@@ -843,12 +919,12 @@ function find_nearest()
 
 		local char = plr.Character or plr.CharacterAdded:Wait()
 		local root = char:WaitForChild('HumanoidRootPart')
-		local human = char:WaitForChild('Humanoid')
-
-		local body_effects = char.BodyEffects or char:WaitForChild('BodyEffects')
 
 		for _, player in ipairs(game.Players:GetPlayers()) do
-			if player.Character and root and player.Name ~= plr.Name and char.BodyEffects['K.O'].Value ~= true then
+			local target_char = player.Character or player.CharacterAdded:Wait()
+			local body_effects = target_char.BodyEffects or target_char:WaitForChild('BodyEffects')
+	
+			if player.Character and root and player.Name ~= plr.Name and target_char.BodyEffects['K.O'].Value ~= true then
 				local human = player.Character.Humanoid
 				if get_distance(human.Parent.HumanoidRootPart) < range then
 					local mouse_pos = Vector2.new(cursor.X, cursor.Y)
@@ -879,16 +955,19 @@ meta.__namecall = newcclosure(function(...)
     local args = {...}
 
     if aimlock and aimlock_locked and getnamecallmethod() == "FireServer" and args[2] == "UpdateMousePos" then
-        if aimlock_predictions then
-            local move_direction = aimlock_target.Humanoid.MoveDirection
-            args[3] = Vector3.new(
-                aimlock_target.HumanoidRootPart.Position.X + move_direction.X * aimlock_x_prediction,
-                aimlock_target.HumanoidRootPart.Position.Y + move_direction.Y * aimlock_y_prediction,
-                aimlock_target.HumanoidRootPart.Position.Z + move_direction.Z * aimlock_x_prediction
-			)
+        local character = aimlock_target.Character or aimlock_target.CharacterAdded:Wait()
+		local target_root = character.HumanoidRootPart or character:WaitForChild('HumanoidRootPart')
 
+		if aimlock_predictions then
+            local move_direction = character.Humanoid.MoveDirection
+
+            args[3] = Vector3.new(
+                target_root.Position.X + move_direction.X * aimlock_x_prediction,
+                target_root.Position.Y + move_direction.Y * aimlock_y_prediction,
+                target_root.Position.Z + move_direction.Z * aimlock_x_prediction
+			)
         elseif not aimlock_predictions then
-            args[3] = aimlock_target.HumanoidRootPart.Position
+            args[3] = target_root.Position
         end
                 
         return old_nc(unpack(args))
@@ -899,7 +978,7 @@ end)
 function lock_on(target_character)
     root = target_character.HumanoidRootPart or target_character:WaitForChild('HumanoidRootPart')
     
-    aimlock_target = root
+    aimlock_target = game.Players:GetPlayerFromCharacter(root.Parent)
 end
 
 --[ UI ELEMENTS ]--------------------------
@@ -921,35 +1000,51 @@ aimlock_predictions_toggle = aimlock_category.new_toggle({
     end
 })
 
+aimlock_auto_predictions = aimlock_category.new_toggle({ 
+	text = 'auto prediction', 	  
+	callback = function() 
+		aimlock_autopredict = not aimlock_autopredict  
+	end
+})
+
 aimlock_keybind = aimlock_category.new_keybind({
     text = 'keybind',
     callback = function()
+		if not aimlock then return end
         aimlock_locked = not aimlock_locked
 
         if aimlock_locked then
-            new_target = find_nearest()
+            local new_target = find_nearest()
+            
 			if new_target == nil then  
 				aimlock_locked = false 
+				
+				game.StarterGui:SetCore('SendNotification', {
+					Title = 'failed to lock on',
+					Text = 'could not find target',
+					Duration = 1
+				})
+
 				return
 			end
 
-            aimlock_target = new_target
+            aimlock_target = game.Players:GetPlayerFromCharacter(new_target)
             game.StarterGui:SetCore('SendNotification', {
                 Title = 'locked on',
-                Text = 'locked onto: '..new_target.Name,
-                Duration = 5
+                Text = 'locked onto: '..aimlock_target.DisplayName,
+                Duration = 3
             })
 
-            -- beam_attachment_2.Parent = aimlock_target.HumanoidRootPart
+			dot_gui.Enabled = true
             beam.Enabled = true
         elseif not aimlock_locked then
             game.StarterGui:SetCore('SendNotification', {
                 Title = 'unlocked',
                 Text = 'aim unlocked.',
-                Duration = 5
+                Duration = 3
             })
 
-            -- beam_attachment_2.Parent = nil
+			dot_gui.Enabled = false
             beam.Enabled = false
         end
     end
@@ -963,7 +1058,7 @@ aimlock_x_pred = aimlock_category.new_textbox({
 })
 
 aimlock_y_pred = aimlock_category.new_textbox({
-    text = 'x prediction',
+    text = 'y prediction',
     callback = function(input)
         aimlock_y_prediction = input 
     end
@@ -1033,6 +1128,7 @@ local boxes = false
 local tracers = false
 local labels = false
 local outlines = false
+local chams = false
 local esp_color = Color3.fromRGB(255, 255, 255)
 local outline_color = Color3.fromRGB(0, 0, 0)
 
@@ -1040,6 +1136,7 @@ local box_table = {}
 local tracer_table = {}
 local label_table = {}
 local skeleton_table = {}
+local chams_table = {}
 
 group1 = esp_tab.new_group('group1')
 esp_category = group1.new_category('ESP')
@@ -1107,18 +1204,47 @@ end})
 skeletons_toggle = esp_category.new_toggle({
 	text = 'skeletons',
 	callback = function()
+        skeletons = not skeletons
+
 		if skeletons then
 			for _, player in ipairs(game.Players:GetPlayers()) do
 				if player and player.Character and player ~= plr then
-					skeleton = esp.draw_skeleton(player, {
+					skeleton_table[player.Name] = esp.draw_skeleton(player, {
 						color = esp_color,
 					})
 				end
 			end
 		elseif not skeletons then
-			for _, skeleton in pairs(skeleton_table) do
+			for _, skele in pairs(skeleton_table) do
 				local _, __ = pcall(function() 
-					skeleton.destroy() 
+					skele.destroy() 
+				end)
+			end
+		end
+	end
+})
+
+chams_toggle = esp_category.new_toggle({
+	text = 'chams',
+	callback = function()
+        chams = not chams
+
+		if chams then
+			for _, player in ipairs(game.Players:GetPlayers()) do
+				if player and player.Character and player ~= plr then
+					chams_table[player.Name] = esp.new_highlight(player, {
+						color = esp_color,
+						outline_color = esp_color,
+						fill_transparency = 0.75,
+						outline_transparency = 0,
+						outline = true
+					})
+				end
+			end
+		elseif not chams then
+			for _, cham in pairs(chams_table) do
+				local _, __ = pcall(function() 
+					cham.destroy() 
 				end)
 			end
 		end
