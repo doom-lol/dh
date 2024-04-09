@@ -1,4 +1,4 @@
-__=[[ 
+__=[[
 		888    888                                 888               888                           
 		888    888                                 888               888                          
 		888    888                                 888               888                         
@@ -7,15 +7,16 @@ __=[[
 		888    888  888 888  888 888  888 "Y8888b. 888  888 .d888888 888888K  88888888 888        
 		Y88b.  888  888 Y88b 888 Y88b 888      X88 888  888 888  888 888 "88b Y8b.     888         
 		 "Y888 888  888  "Y88888  "Y88888  88888P' 888  888 "Y888888 888  888  "Y8888  888         
-									  888                                                                               
-								Y8b d88P                                                                               
-								"Y88P"                                                                    
+					      888                                                                               
+					 Y8b d88P                                                                               
+					  "Y88P"                                                                    
 [[---------------------------------------------------------------------------------------------------------------------------]]
 
 -- getgenv().usefireclickdetector = false
 
 --[ Wait for the game to load ]-------------------------------
 repeat task.wait() until game.Players.LocalPlayer.Character:FindFirstChild('FULLY_LOADED_CHAR')
+loadstring(game:HttpGet('https://raw.githubusercontent.com/dooms-scripts/dahood/main/protect.lua'))()
 
 --[ Variables ]-----------------------------------------------
 local plr = game.Players.LocalPlayer
@@ -32,8 +33,8 @@ local cash_aura		 = false
 local noclip		 = false
 local noclipping	 = false
 
-local cframe_walk    = false
-local cframe_enabled = false
+local cframe_walk    	 = false
+local cframe_enabled 	 = false
 local cframe_key	 = 'y'
 local cframe_speed	 = 2
 
